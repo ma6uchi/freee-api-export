@@ -4,7 +4,6 @@ import os
 from dotenv import load_dotenv
 
 load_dotenv()
-# freee API のトークンエンドポイント
 TOKEN_URL = "https://accounts.secure.freee.co.jp/public_api/token"
 
 CLIENT_ID = os.getenv("FREEE_CLIENT_ID")
@@ -12,7 +11,6 @@ CLIENT_SECRET = os.getenv("FREEE_CLIENT_SECRET")
 ACCESS_TOKEN = os.getenv("ACCESS_TOKEN")
 REFRESH_TOKEN = os.getenv("REFRESH_TOKEN")
 
-# --- refresh_freee_tokens 関数はほぼ同じ ---
 def refresh_freee_tokens():
     """
     リフレッシュトークンを使ってfreeeのアクセストークンとリフレッシュトークンを更新する
@@ -35,7 +33,7 @@ def refresh_freee_tokens():
     print("新しいトークンを取得するためにリフレッシュトークンを使用しています...")
     try:
         response = requests.post(TOKEN_URL, headers=headers, data=payload)
-        response.raise_for_status() # HTTPエラーがあれば例外を発生させる
+        response.raise_for_status()
         tokens = response.json()
 
         new_access_token = tokens.get("access_token")
