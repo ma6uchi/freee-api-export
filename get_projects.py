@@ -1,23 +1,11 @@
 import requests
-import json
-import os
-from dotenv import load_dotenv
-from get_tokens import refresh_freee_tokens
+import time
 
-load_dotenv()
-
-TOKEN_URL = "https://api.freee.co.jp/oauth/token"
-
-# .env ファイルまたは環境変数から取得
-CLIENT_ID = os.getenv("FREEE_CLIENT_ID")
-CLIENT_SECRET = os.getenv("FREEE_CLIENT_SECRET")
-COMPANY_ID = os.getenv("FREEE_COMPANY_ID")
-
-WORKLOADS_API_URL = "https://api.freee.co.jp/pm/projects"
+PROJECTS_API_URL = "https://api.freee.co.jp/pm/projects"
 
 def get_all_freee_projects(access_token, company_id, limit=100):
     """
-    freee API から指定された事業所IDと年月、社員スコープで全プロジェクトデータをページネーションで取得する
+    freee API から全プロジェクトデータをページネーションで取得する
     """
     if not access_token:
         print("エラー: アクセストークンが提供されていません。")
@@ -29,7 +17,6 @@ def get_all_freee_projects(access_token, company_id, limit=100):
     all_projects = []
     offset = 0
     total_count = -1
-
     first_request = True
 
     while True:
@@ -45,7 +32,7 @@ def get_all_freee_projects(access_token, company_id, limit=100):
 
         print(f"\nfreee API からプロジェクトを取得中 (offset: {offset})...")
         try:
-            response = requests.get(WORKLOADS_API_URL, headers=headers, params=params)
+            response = requests.get(PROJECTS_API_URL, headers=headers, params=params)
             response.raise_for_status()
             data = response.json()
 
@@ -56,7 +43,7 @@ def get_all_freee_projects(access_token, company_id, limit=100):
                 total_count = projects_meta.get("total_count", 0)
                 print(f"総プロジェクト件数: {total_count}")
                 if total_count == 0:
-                    print("該当するプロジェクトデータがありませんでした。")
+                    print("プロジェクトデータがありませんでした。")
                     return []
                 first_request = False
 
@@ -67,6 +54,8 @@ def get_all_freee_projects(access_token, company_id, limit=100):
             if len(current_projects_part) < limit or offset >= total_count:
                 print("全てのプロジェクトデータを取得しました。")
                 break
+
+            time.sleep(1) # レートリミット対策
 
         except requests.exceptions.RequestException as e:
             print(f"プロジェクトの取得中にエラーが発生しました: {e}")
@@ -80,21 +69,11 @@ def get_all_freee_projects(access_token, company_id, limit=100):
 
     return all_projects
 
-
-# --- 実行例 ---
-if __name__ == "__main__":
-    if not CLIENT_ID or not CLIENT_SECRET:
-        print("エラー: CLIENT_ID または CLIENT_SECRET が .env ファイルに設定されていません。")
-    else:
-        print("\n--- freee API 連携処理の開始 ---")
-
-        access_token, _ = refresh_freee_tokens()
-        year_month = "2025-05"
-        offset = 0
-
-        if access_token:
-            projects = get_all_freee_projects(access_token, COMPANY_ID)
-            print("[" + ", ".join([str(x) for x in projects[:3]]) + ", ..., " + ", ".join([str(x) for x in projects[len(projects) - 3:]]) + "]")
-
-        else:
-            print("\nトークンの更新に失敗したため、freee API にアクセスできません。")
+def create_project_lookup(projects_list):
+    """
+    プロジェクトリストをIDをキーとする辞書に変換し、検索を高速化する。
+    """
+    project_lookup = {}
+    for project in projects_list:
+        project_lookup[project['id']] = project
+    return project_lookup

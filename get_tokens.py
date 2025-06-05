@@ -4,20 +4,18 @@ import os
 from dotenv import load_dotenv
 
 load_dotenv()
-TOKEN_URL = "https://accounts.secure.freee.co.jp/public_api/token"
 
+TOKEN_URL = "https://accounts.secure.freee.co.jp/public_api/token"
 CLIENT_ID = os.getenv("FREEE_CLIENT_ID")
 CLIENT_SECRET = os.getenv("FREEE_CLIENT_SECRET")
-ACCESS_TOKEN = os.getenv("ACCESS_TOKEN")
-REFRESH_TOKEN = os.getenv("REFRESH_TOKEN")
 
 def refresh_freee_tokens():
     """
     リフレッシュトークンを使ってfreeeのアクセストークンとリフレッシュトークンを更新する
     """
-    current_refresh_token = REFRESH_TOKEN
+    current_refresh_token = os.getenv("FREEE_REFRESH_TOKEN")
     if not current_refresh_token:
-        print("エラー: REFRESH_TOKEN が .env ファイルまたは環境変数に設定されていません。")
+        print("エラー: FREEE_REFRESH_TOKEN が .env ファイルまたは環境変数に設定されていません。")
         return None, None
 
     headers = {
@@ -44,8 +42,7 @@ def refresh_freee_tokens():
             print(f"新しいアクセストークン (次回使用): {new_access_token}")
             print(f"新しいリフレッシュトークン (次回使用): {new_refresh_token}")
             print("--- 重要 ---")
-            print("この新しいリフレッシュトークンを次の実行のために手動で .env ファイルの REFRESH_TOKEN に更新してください。")
-            print("または、ローカルでの動的な保存方法を検討してください（例: tokens.json）。")
+            print("この新しいリフレッシュトークンを次の実行のために手動で .env ファイルの FREEE_REFRESH_TOKEN に更新してください。")
             return new_access_token, new_refresh_token
         else:
             print(f"エラー: レスポンスに新しいトークンが含まれていませんでした。{tokens}")
@@ -57,18 +54,3 @@ def refresh_freee_tokens():
             print(f"レスポンスステータス: {e.response.status_code}")
             print(f"レスポンスボディ: {e.response.text}")
         return None, None
-
-# 実行例
-if __name__ == "__main__":
-    if not CLIENT_ID or not CLIENT_SECRET:
-        print("エラー: CLIENT_ID または CLIENT_SECRET が .env ファイルに設定されていません。")
-    else:
-        print("\n--- トークン更新処理の開始 (.env 利用) ---")
-        access_token, refresh_token = refresh_freee_tokens()
-
-        if access_token and refresh_token:
-            print("\nfreee API のデータエクスポートに進むことができます。")
-            # 例: freee API でデータを取得する処理をここに追加
-            # (access_token を使って API リクエストを行う)
-        else:
-            print("\nトークンの更新に失敗したため、freee API にアクセスできません。")
