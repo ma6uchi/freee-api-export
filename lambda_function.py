@@ -1,3 +1,4 @@
+import json
 import os
 from dotenv import load_dotenv
 from datetime import datetime, timedelta
@@ -11,7 +12,7 @@ from process_workloads_to_csv import process_workloads_to_csv_data, write_to_csv
 # .env ファイルを読み込む
 load_dotenv()
 
-def lambda_handler(event, context):
+def main():
     """
     freee APIから工数データを取得し、CSVとしてエクスポートするメイン処理
     """
@@ -83,5 +84,20 @@ def lambda_handler(event, context):
 
     print("\n--- freee 工数データエクスポート処理が完了しました ---")
 
+def lambda_handler(event, context):
+    """
+    Lambda関数が呼び出されたときに実行されるエントリポイント
+    """
+    print("--- Lambda関数実行開始 ---")
+
+    # main()関数を実行
+    main()
+
+    print("--- Lambda関数実行終了 ---")
+    return {
+        'statusCode': 200,
+        'body': json.dumps('処理が正常に完了しました')
+    }
+
 if __name__ == "__main__":
-    lambda_handler(0, 0)
+    main(0, 0)
