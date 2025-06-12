@@ -1,5 +1,12 @@
 import csv
 from collections import defaultdict
+import io
+import json
+
+# Google Drive API 関連のライブラリのインポート
+from google.oauth2 import service_account # <-- ここを追加
+from googleapiclient.discovery import build
+from googleapiclient.http import MediaIoBaseUpload
 
 def process_workloads_to_csv_data(all_workloads, project_lookup_dict):
     """
@@ -31,15 +38,21 @@ def process_workloads_to_csv_data(all_workloads, project_lookup_dict):
             project_code = project_info.get('code', '')
 
             if project_info.get('project_tags'):
+                current_project_tags = [] 
                 for p_tag in project_info['project_tags']:
-                    if p_tag.get('tag_name') == '社内':
+                    # 社内/社外の判定
+                    if p_tag.get('tag_group_name') == '社内':
                         internal_external = '社内'
-                        project_tag_name = p_tag.get('tag_name')
-                        break
-                    elif p_tag.get('tag_name') == '社外':
+                    elif p_tag.get('tag_group_name') == '社外':
                         internal_external = '社外'
-                        project_tag_name = p_tag.get('tag_name')
-                        break
+
+                # tag_name を project_tag_name に含めるのは、そのままのロジックでOKです。
+                if p_tag.get('tag_name'):
+                    current_project_tags.append(p_tag['tag_name'])
+
+                
+                # 複数のプロジェクトタグがある場合を考慮し、カンマ区切りで結合
+                project_tag_name = ", ".join(sorted(set(current_project_tags)))
 
         if wl.get('workload_tags'):
             for wt in wl['workload_tags']:
@@ -104,25 +117,58 @@ def process_workloads_to_csv_data(all_workloads, project_lookup_dict):
 
     return final_csv_data
 
-
-def write_to_csv(data_rows, filename="workloads_summary.csv"):
+def write_to_csv_to_google_drive(data_rows, service_account_info_json, folder_id, file_name):
     """
-    整形されたデータをCSVファイルに書き出す。
+    整形されたデータをCSVファイルとしてGoogleドライブに書き出す。
     """
     if not data_rows:
-        print("書き出すデータがありません。")
+        print("書き出すデータがありません。Googleドライブへの書き込みをスキップします。")
         return
 
+    # CSVヘッダー
     fieldnames = [
-        '対象従業員', '社内/社外', 'プロジェクト', '工数タグ', 
+        '対象従業員', '社内/社外', 'プロジェクト', '工数タグ',
         'プロジェクトタグ', '業務内容', '合計工数（分）', '合計工数（時間）'
     ]
 
+    # メモリ上でCSVデータを構築
+    csv_string_buffer = io.StringIO()
+    writer = csv.DictWriter(csv_string_buffer, fieldnames=fieldnames)
+    writer.writeheader()
+    writer.writerows(data_rows)
+
+    csv_bytes = csv_string_buffer.getvalue().encode('utf-8') # UTF-8でバイト列にエンコード
+    csv_bytes_buffer = io.BytesIO(csv_bytes)
+
+    # Google Drive API 認証
     try:
-        with open(filename, 'w', newline='', encoding='utf-8') as csvfile:
-            writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
-            writer.writeheader()
-            writer.writerows(data_rows)
-        print(f"CSVファイル '{filename}' を作成しました。")
-    except IOError as e:
-        print(f"CSVファイルの書き込み中にエラーが発生しました: {e}")
+        credentials = service_account.Credentials.from_service_account_info(
+            json.loads(service_account_info_json),
+            scopes=['https://www.googleapis.com/auth/drive']
+        )
+        service = build('drive', 'v3', credentials=credentials)
+    except Exception as e:
+        print(f"Google Drive APIの認証に失敗しました: {e}")
+        raise
+
+    # ファイルメタデータ
+    file_metadata = {
+        'name': file_name,
+        'parents': [folder_id],
+        'mimeType': 'text/csv'
+    }
+
+    # ファイルのアップロード
+    media = MediaIoBaseUpload(csv_bytes_buffer, mimetype='text/csv', resumable=True)
+    
+    try:
+        file = service.files().create(
+            body=file_metadata, 
+            media_body=media, 
+            fields='id', 
+            supportsAllDrives=True
+        ).execute()
+        print(f"CSVファイル '{file_name}' をGoogleドライブにアップロードしました。ファイルID: {file.get('id')}")
+    except Exception as e:
+        print(f"GoogleドライブへのCSVファイルアップロード中にエラーが発生しました: {e}")
+        raise
